@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NEXUS | Visual Reality Overclocking</title>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@300;500;700&family=Syncopate:wght@400;700&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --bg: #080808;
+            --text: #ffffff;
+            --accent: #00f0ff; /* Cyan Cyberpunk */
+            --accent-sec: #7000ff;
+            --grid-color: rgba(255, 255, 255, 0.05);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            cursor: none; /* On garde le curseur custom */
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Rajdhani', sans-serif;
+            overflow-x: hidden;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        /* --- NOISE OVERLAY (Grain pellicule) --- */
+        .noise {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 9000;
+            opacity: 0.05;
+            background: url('https://grainy-gradients.vercel.app/noise.svg');
+        }
+
+        /* --- WEBGL CANVAS --- */
+        #canvas-container {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: -1;
+            opacity: 0.6;
+        }
+
+        /* --- CUSTOM CURSOR --- */
+        .cursor {
+            position: fixed;
+            top: 0; left: 0;
+            width: 20px; height: 20px;
+            border: 1px solid var(--text);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 9999;
+            transition: width 0.3s, height 0.3s, background 0.3s;
+            mix-blend-mode: difference;
+        }
+        .cursor.active {
+            width: 50px; height: 50px;
+            background: var(--text);
+            opacity: 0.5;
+        }
+
+        /* --- PRELOADER --- */
+        .preloader {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: #000;
+            z-index: 10000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+        .counter {
+            font-family: 'Syncopate', sans-serif;
+            font-size: 5vw;
+            color: var(--accent);
+        }
+        .loading-text {
+            font-family: 'Rajdhani', monospace;
+            margin-top: 10px;
+            opacity: 0.5;
+            letter-spacing: 3px;
+        }
+
+        /* --- TYPOGRAPHY --- */
+        h1 {
+            font-family: 'Syncopate', sans-serif;
+            font-weight: 700;
+            text-transform: uppercase;
+            line-height: 0.8;
+            font-size: clamp(4rem, 10vw, 12rem);
+            mix-blend-mode: overlay;
+        }
+
+        h2 {
+            font-family: 'Syncopate', sans-serif;
+            font-size: 3rem;
+            margin-bottom: 2rem;
+            color: var(--text);
+        }
+
+        p {
+            font-size: 1.2rem;
+            line-height: 1.6;
+            max-width: 600px;
+            color: #888;
+        }
+
+        .tagline {
+            color: var(--accent);
+            font-family: 'Rajdhani', monospace;
+            font-weight: 700;
+            letter-spacing: 4px;
+            margin-bottom: 20px;
+            display: block;
+        }
+
+        /* --- LAYOUT --- */
+        section {
+            padding: 10vh 5vw;
+            min-height: 100vh;
+            position: relative;
+            border-bottom: 1px solid var(--grid-color);
+        }
+
+        .hero {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        /* --- BUTTONS (Magnetic) --- */
+        .magnetic-wrap {
+            display: inline-block;
+            margin-top: 3rem;
+        }
+        
+        .btn-glitch {
+            padding: 25px 50px;
+            background: transparent;
+            border: 1px solid rgba(255,255,255,0.2);
+            color: var(--text);
+            font-family: 'Syncopate', sans-serif;
+            text-transform: uppercase;
+            font-weight: 700;
+            letter-spacing: 2px;
+            position: relative;
+            overflow: hidden;
+            transition: 0.3s;
+        }
+        
+        .btn-glitch::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: var(--accent);
+            z-index: -1;
+            transform: scaleX(0);
+            transform-origin: right;
+            transition: transform 0.5s cubic-bezier(0.19, 1, 0.22, 1);
+        }
+
+        .btn-glitch:hover::before {
+            transform: scaleX(1);
+            transform-origin: left;
+        }
+        .btn-glitch:hover {
+            color: #000;
+            border-color: var(--accent);
+        }
+
+        /* --- SCROLLING TEXT (MARQUEE) --- */
+        .marquee-container {
+            width: 100%;
+            overflow: hidden;
+            padding: 2rem 0;
+            background: var(--accent);
+            color: #000;
+            transform: rotate(-2deg) scale(1.1);
+            margin: 5vh 0;
+        }
+        .marquee-content {
+            display: flex;
+            white-space: nowrap;
+            animation: scroll 20s linear infinite;
+        }
+        .marquee-item {
+            font-family: 'Syncopate', sans-serif;
+            font-size: 4rem;
+            font-weight: 700;
+            margin-right: 4rem;
+        }
+        @keyframes scroll {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-50%); }
+        }
+
+        /* --- SPECS GRID --- */
+        .specs-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1px;
+            background: rgba(255,255,255,0.1); /* Create grid lines via gap */
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .spec-item {
+            background: var(--bg);
+            padding: 3rem;
+            position: relative;
+            transition: 0.3s;
+        }
+        .spec-item:hover {
+            background: #0f0f0f;
+        }
+        .spec-number {
+            font-family: 'Syncopate', sans-serif;
+            font-size: 3rem;
+            color: var(--accent);
+            opacity: 0.5;
+        }
+
+        /* --- HACK OVERLAY --- */
+        .hack-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: black;
+            z-index: 9998;
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Rajdhani', monospace;
+        }
+
+        .hack-status {
+            color: var(--accent);
+            font-size: 2rem;
+            margin-bottom: 20px;
+            text-transform: uppercase;
+        }
+
+        .hack-logs {
+            width: 600px;
+            height: 200px;
+            border: 1px solid #333;
+            padding: 20px;
+            color: #555;
+            font-size: 0.9rem;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column-reverse;
+        }
+        
+        /* Glitch CSS classes */
+        .glitch-active {
+            animation: glitch-anim 0.2s infinite;
+        }
+        @keyframes glitch-anim {
+            0% { transform: translate(0) }
+            20% { transform: translate(-5px, 5px) }
+            40% { transform: translate(-5px, -5px) }
+            60% { transform: translate(5px, 5px) }
+            80% { transform: translate(5px, -5px) }
+            100% { transform: translate(0) }
+        }
+
+    </style>
+</head>
+<body>
+
+    <!-- Noise Overlay -->
+    <div class="noise"></div>
+
+    <!-- Custom Cursor -->
+    <div class="cursor"></div>
+
+    <!-- WebGL Background -->
+    <div id="canvas-container"></div>
+
+    <!-- Preloader -->
+    <div class="preloader">
+        <div class="counter">0%</div>
+        <div class="loading-text">INITIALIZING QUANTUM DRIVERS</div>
+    </div>
+
+    <!-- CONTENT WRAPPER (For Lenis) -->
+    <main>
+        
+        <!-- HERO SECTION -->
+        <section class="hero">
+            <span class="tagline scramble">NEXT GEN FLUIDITY</span>
+            <h1 class="scramble">DOWNLOAD<br>REALITY</h1>
+            <div style="margin-top: 4rem; display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap;">
+                <p class="reveal">
+                    Nos algorithmes d'interpolation neuronale augmentent la fréquence de rafraîchissement de votre moniteur en modifiant directement la perception de votre cortex visuel.
+                </p>
+                <div class="magnetic-wrap">
+                    <button class="btn-glitch" onclick="scrollToDownload()">ACQUIRE HERTZ</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- MARQUEE -->
+        <div class="marquee-container">
+            <div class="marquee-content">
+                <span class="marquee-item">UNLIMITED FPS ///</span>
+                <span class="marquee-item">NO HARDWARE REQUIRED ///</span>
+                <span class="marquee-item">OCULAR OVERCLOCK ///</span>
+                <span class="marquee-item">DOWNLOAD NOW ///</span>
+                <span class="marquee-item">UNLIMITED FPS ///</span>
+                <span class="marquee-item">NO HARDWARE REQUIRED ///</span>
+                <span class="marquee-item">OCULAR OVERCLOCK ///</span>
+                <span class="marquee-item">DOWNLOAD NOW ///</span>
+            </div>
+        </div>
+
+        <!-- SPECS -->
+        <section>
+            <h2 class="scramble">SYSTEM ARCHITECTURE</h2>
+            <div class="specs-grid">
+                <div class="spec-item">
+                    <div class="spec-number">01</div>
+                    <h3>Photon Injection</h3>
+                    <p>Force les pixels à émettre de la lumière plus vite que la vitesse physique autorisée.</p>
+                </div>
+                <div class="spec-item">
+                    <div class="spec-number">02</div>
+                    <h3>Nano-Smoothing</h3>
+                    <p>Supprime les micro-stutters en prédisant le futur de votre souris.</p>
+                </div>
+                <div class="spec-item">
+                    <div class="spec-number">03</div>
+                    <h3>Retina Sync™</h3>
+                    <p>Une connexion directe entre le GPU et votre nerf optique via WiFi 6E.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- DOWNLOAD -->
+        <section id="download-area" style="text-align: center; justify-content: center; align-items: center; display: flex; flex-direction: column;">
+            <h2 class="scramble" style="font-size: 5vw;">CHOOSE VELOCITY</h2>
+            
+            <div style="display: flex; gap: 2rem; margin-top: 3rem; flex-wrap: wrap; justify-content: center;">
+                <div class="magnetic-wrap">
+                    <button class="btn-glitch" onclick="initiatePrank('240HZ')" style="border-color: var(--accent);">240 HZ // PRO</button>
+                </div>
+                <div class="magnetic-wrap">
+                    <button class="btn-glitch" onclick="initiatePrank('500HZ')" style="border-color: var(--accent-sec);">500 HZ // GOD</button>
+                </div>
+                <div class="magnetic-wrap">
+                    <button class="btn-glitch" onclick="initiatePrank('∞ HZ')" style="border-color: white; color: white; background: white; color: black;">∞ HZ // DANGEROUS</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- FOOTER -->
+        <section style="min-height: 30vh; justify-content: flex-end;">
+            <div style="border-top: 1px solid #333; padding-top: 20px; display: flex; justify-content: space-between;">
+                <span>NEXUS LABORATORIES © 2077</span>
+                <span>PATENT PENDING: 999-FAIL</span>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- HACK UI -->
+    <div class="hack-overlay" id="hackOverlay">
+        <div class="hack-status" id="hackStatus">CONNECTING...</div>
+        <div style="width: 600px; height: 5px; background: #333; margin-bottom: 20px;">
+            <div id="hackBar" style="width: 0%; height: 100%; background: var(--accent); transition: width 0.1s;"></div>
+        </div>
+        <div class="hack-logs" id="hackLogs"></div>
+    </div>
+
+    <!-- LIBRARIES -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/studio-freight/lenis@1.0.29/bundled/lenis.min.js"></script>
+
+    <script>
+        // ----------------------------------------------------------
+        // 1. PRELOADER
+        // ----------------------------------------------------------
+        const counter = document.querySelector('.counter');
+        let count = 0;
+        const loaderInterval = setInterval(() => {
+            count += Math.floor(Math.random() * 5) + 1;
+            if(count >= 100) {
+                count = 100;
+                clearInterval(loaderInterval);
+                
+                gsap.to('.preloader', {
+                    y: '-100%',
+                    duration: 1.5,
+                    ease: 'power4.inOut',
+                    onComplete: () => initAnimations()
+                });
+            }
+            counter.textContent = count + '%';
+        }, 30);
+
+        // ----------------------------------------------------------
+        // 2. THREE.JS BACKGROUND (Le truc 3D stylé)
+        // ----------------------------------------------------------
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+        
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+        // Création d'une forme géométrique "Wireframe"
+        const geometry = new THREE.IcosahedronGeometry(10, 2); // Une sphère complexe
+        const material = new THREE.MeshBasicMaterial({ 
+            color: 0x00f0ff, 
+            wireframe: true,
+            transparent: true,
+            opacity: 0.3
+        });
+        const sphere = new THREE.Mesh(geometry, material);
+        scene.add(sphere);
+
+        camera.position.z = 30;
+
+        // Animation Loop
+        let mouseX = 0;
+        let mouseY = 0;
+
+        function animate3D() {
+            requestAnimationFrame(animate3D);
+
+            // Rotation constante
+            sphere.rotation.x += 0.001;
+            sphere.rotation.y += 0.002;
+
+            // Influence de la souris
+            sphere.rotation.x += mouseY * 0.0005;
+            sphere.rotation.y += mouseX * 0.0005;
+
+            renderer.render(scene, camera);
+        }
+        animate3D();
+
+        // Event Listeners pour la souris et resize
+        window.addEventListener('mousemove', (event) => {
+            mouseX = (event.clientX - window.innerWidth / 2);
+            mouseY = (event.clientY - window.innerHeight / 2);
+        });
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // ----------------------------------------------------------
+        // 3. SMOOTH SCROLL & CURSOR
+        // ----------------------------------------------------------
+        const lenis = new Lenis({
+            duration: 1.2,
+            smooth: true
+        });
+        function raf(time) {
+            lenis.raf(time);
+            requestAnimationFrame(raf);
+        }
+        requestAnimationFrame(raf);
+
+        const cursor = document.querySelector('.cursor');
+        window.addEventListener('mousemove', (e) => {
+            cursor.style.left = e.clientX + 'px';
+            cursor.style.top = e.clientY + 'px';
+        });
+
+        // Effet magnétique sur les boutons
+        document.querySelectorAll('button').forEach(btn => {
+            btn.addEventListener('mouseenter', () => cursor.classList.add('active'));
+            btn.addEventListener('mouseleave', () => cursor.classList.remove('active'));
+            
+            // Mouvement magnétique
+            btn.addEventListener('mousemove', (e) => {
+                const rect = btn.getBoundingClientRect();
+                const x = e.clientX - rect.left - rect.width / 2;
+                const y = e.clientY - rect.top - rect.height / 2;
+                btn.style.transform = `translate(${x * 0.3}px, ${y * 0.3}px)`;
+            });
+            btn.addEventListener('mouseleave', () => {
+                btn.style.transform = 'translate(0px, 0px)';
+            });
+        });
+
+        // ----------------------------------------------------------
+        // 4. TEXT SCRAMBLE EFFECT (Effet Hacker)
+        // ----------------------------------------------------------
+        class TextScramble {
+            constructor(el) {
+                this.el = el;
+                this.chars = '!<>-_\\/[]{}—=+*^?#________';
+                this.update = this.update.bind(this);
+            }
+            setText(newText) {
+                const oldText = this.el.innerText;
+                const length = Math.max(oldText.length, newText.length);
+                const promise = new Promise((resolve) => this.resolve = resolve);
+                this.queue = [];
+                for (let i = 0; i < length; i++) {
+                    const from = oldText[i] || '';
+                    const to = newText[i] || '';
+                    const start = Math.floor(Math.random() * 40);
+                    const end = start + Math.floor(Math.random() * 40);
+                    this.queue.push({ from, to, start, end });
+                }
+                cancelAnimationFrame(this.frameRequest);
+                this.frame = 0;
+                this.update();
+                return promise;
+            }
+            update() {
+                let output = '';
+                let complete = 0;
+                for (let i = 0, n = this.queue.length; i < n; i++) {
+                    let { from, to, start, end, char } = this.queue[i];
+                    if (this.frame >= end) {
+                        complete++;
+                        output += to;
+                    } else if (this.frame >= start) {
+                        if (!char || Math.random() < 0.28) {
+                            char = this.randomChar();
+                            this.queue[i].char = char;
+                        }
+                        output += `<span class="dud">${char}</span>`;
+                    } else {
+                        output += from;
+                    }
+                }
+                this.el.innerHTML = output;
+                if (complete === this.queue.length) {
+                    this.resolve();
+                } else {
+                    this.frameRequest = requestAnimationFrame(this.update);
+                    this.frame++;
+                }
+            }
+            randomChar() {
+                return this.chars[Math.floor(Math.random() * this.chars.length)];
+            }
+        }
+
+        // Initialisation des animations après le chargement
+        function initAnimations() {
+            gsap.registerPlugin(ScrollTrigger);
+
+            // Animation d'apparition standard
+            gsap.utils.toArray('.reveal').forEach(elem => {
+                gsap.from(elem, {
+                    scrollTrigger: { trigger: elem, start: "top 80%" },
+                    y: 50, opacity: 0, duration: 1, ease: "power3.out"
+                });
+            });
+
+            // Animation Scramble sur les titres
+            const scrambles = document.querySelectorAll('.scramble');
+            scrambles.forEach(el => {
+                const fx = new TextScramble(el);
+                const originalText = el.innerText;
+                
+                ScrollTrigger.create({
+                    trigger: el,
+                    start: "top 80%",
+                    onEnter: () => fx.setText(originalText)
+                });
+            });
+        }
+
+        function scrollToDownload() {
+            lenis.scrollTo('#download-area');
+        }
+
+        // ----------------------------------------------------------
+        // 5. LA PRANK (Séquence finale)
+        // ----------------------------------------------------------
+        const logPhrases = [
+            "Initialisation du pont neuronal...",
+            "Allocation de la mémoire vidéo virtuelle...",
+            "Téléchargement des paquets Hertz [Compression: 99%]...",
+            "Overclocking du moniteur... (Risque d'incendie: 5%)",
+            "Correction des couleurs par IA...",
+            "Injection de frames fantômes...",
+            "Bypass de la limite physique de l'univers...",
+            "Synchronisation avec la réalité...",
+            "Optimisation terminée."
+        ];
+
+        function initiatePrank(type) {
+            const overlay = document.getElementById('hackOverlay');
+            const status = document.getElementById('hackStatus');
+            const bar = document.getElementById('hackBar');
+            const logs = document.getElementById('hackLogs');
+            
+            overlay.style.display = 'flex';
+            status.innerText = `DOWNLOADING ${type}...`;
+            
+            let progress = 0;
+            
+            const interval = setInterval(() => {
+                progress += Math.random() * 2; // Vitesse aléatoire
+                if(progress > 100) progress = 100;
+                
+                bar.style.width = progress + '%';
+                
+                // Logs aléatoires
+                if(Math.random() > 0.8) {
+                    const p = document.createElement('div');
+                    p.innerText = `> ${logPhrases[Math.floor(Math.random() * logPhrases.length)]}`;
+                    logs.prepend(p); // Ajoute en haut
+                }
+
+                if(progress === 100) {
+                    clearInterval(interval);
+                    finalizePrank(status);
+                }
+            }, 100);
+        }
+
+        function finalizePrank(statusElement) {
+            statusElement.innerText = "INSTALLATION COMPLETE";
+            statusElement.style.color = "#00ff00";
+            
+            // Effet Glitch final
+            document.body.classList.add('glitch-active');
+            
+            setTimeout(() => {
+                document.getElementById('hackOverlay').style.display = 'none';
+                document.body.classList.remove('glitch-active');
+                
+                // La blague finale
+                const confirm = window.confirm("SUCCÈS ! Votre écran tourne maintenant plus vite que la lumière.\n\nSi vous voyez cet écran trembler, c'est bon signe.\n\nVoulez-vous télécharger plus de RAM maintenant ?");
+                
+                if(confirm) {
+                    window.location.href = "https://downloadmoreram.com/";
+                }
+            }, 2000);
+        }
+
+    </script>
+</body>
+</html>
